@@ -56,33 +56,35 @@ Do not mix planning and implementation in the same session.
 
 Every session follows:
 
-1. **Initialize environment**
+1. Initialize environment
+
     ./scripts/session_init.sh
     ./scripts/verify_env.sh
 
-2. **Select task**
+2. Select task
 - select exactly one task from `/backlog/fix_plan.md`
 - prefer highest-priority non-blocked task
 
-3. **Load minimal context**
+3. Load minimal context
 - AGENT.md
 - one backlog item
 - 1–3 relevant spec files
 - one runbook
 - touched files only
 
-4. **Search before acting**
+4. Search before acting
 - do not assume missing implementation
 - inspect codebase first
 
-5. **Execute scoped change**
+5. Execute scoped change
 - modify only required components
 - do not expand scope
 
-6. **Validate**
+6. Validate
+
     ./scripts/run_fast_checks.sh
 
-7. **Write artifacts**
+7. Write artifacts
 - update `/status/session_handoff.md`
 - update `/backlog/fix_plan.md`
 
@@ -107,6 +109,32 @@ Persistent state lives in:
 - `/runbooks/*.md` → procedures
 
 Do not rely on implicit memory or prior sessions.
+
+---
+
+## Artifact-writing rules
+
+Repository artifacts are the primary handoff context between sessions and must be written to maximize accurate state reconstruction.
+
+When updating backlog, handoff, specs, or runbooks:
+
+- write for machine and human legibility
+- prefer explicit structure over narrative prose
+- distinguish clearly between:
+  - facts
+  - decisions
+  - assumptions
+  - blockers
+  - open questions
+  - next steps
+- state what changed and what did not change
+- record why a task stopped, not just that it stopped
+- record the next smallest recommended task
+- avoid vague phrases like “fixed,” “improved,” or “handled”
+- avoid relying on implied context from prior sessions
+- keep formats stable across sessions unless improving the format itself
+
+Artifacts must optimize for restartability of development context.
 
 ---
 
@@ -180,14 +208,18 @@ Escalate when touching:
 - multi-trader behavior
 - cross-domain boundaries
 - event schemas
-- replay/snapshots
+- snapshot/checkpoint logic
+- replay logic
 
 ---
 
 ## Handoff requirements
 
-Every session must update `/status/session_handoff.md`:
+Every session must update `/status/session_handoff.md`.
 
+The handoff must be understandable to a new agent session with no prior chat history.
+
+Include:
 - task attempted
 - scope boundary
 - files changed
@@ -196,6 +228,8 @@ Every session must update `/status/session_handoff.md`:
 - blockers
 - new backlog items
 - next task
+
+Prefer concise structured statements over narrative summaries.
 
 ---
 
