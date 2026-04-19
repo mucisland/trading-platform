@@ -1,7 +1,10 @@
 # AGENT.md
 
 ## Purpose
-This repository is developed through a harness-first workflow with one scoped task per session.
+
+This repository is developed through a harness-first workflow using a sequence of bounded development sessions.
+
+In each session, one agent works on exactly one scoped task so that context stays small, execution remains controlled, and progress is restartable across sessions.
 
 The repository is the system of record for:
 - architecture
@@ -10,7 +13,9 @@ The repository is the system of record for:
 - runbooks
 - implementation status
 
-Chat history is not authoritative.
+Also:
+- Repository artifacts carry continuity between sessions.
+- Chat history is not authoritative.
 
 ## Instruction hierarchy
 
