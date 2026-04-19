@@ -1,5 +1,18 @@
 # Session Handoff
 
+## Purpose / Usage
+
+This file contains the current handoff state for the next session.
+
+It must:
+- reflect only the latest relevant session state
+- be concise and actionable
+- allow a new agent to continue work without prior chat context
+
+Do not use this file as an append-only history log.
+
+If historical handoffs are needed, store them in `/status/handoff_history/` and keep this file focused on current state only.
+
 ## Session metadata
 - Date:
 - Session type: planning | implementation | maintenance | eval-hardening

@@ -11,7 +11,7 @@ It ensures:
 
 ## Script roles
 
-### ./scripts/bootstrap.sh
+### `/scripts/bootstrap.sh`
 
 Use only for:
 - fresh machines
@@ -27,7 +27,7 @@ Responsibilities:
 
 Do not use during normal implementation sessions.
 
-### ./scripts/session_init.sh
+### `/scripts/session_init.sh`
 
 Use at the start of every session.
 
@@ -42,9 +42,9 @@ Responsibilities:
 
 This script prepares the environment but does not guarantee correctness.
 
-### ./scripts/verify_env.sh
+### `/scripts/verify_env.sh`
 
-Use after session_init.sh and before implementation work.
+Use after `/scripts/session_init.sh` and before implementation work.
 
 Responsibilities:
 - verify Python/toolchain availability
@@ -55,7 +55,7 @@ Responsibilities:
 
 This script is the authoritative check that the environment is valid.
 
-### ./scripts/start_local_services.sh
+### `/scripts/start_local_services.sh`
 
 Use only for tasks that require local infrastructure.
 
@@ -64,11 +64,11 @@ Responsibilities:
 - wait for readiness
 - print connection summary
 
-### ./scripts/stop_local_services.sh
+### `/scripts/stop_local_services.sh`
 
 Stops local infrastructure started for development.
 
-### ./scripts/run_fast_checks.sh
+### `/scripts/run_fast_checks.sh`
 
 Runs the default fast validation lane.
 
@@ -80,17 +80,17 @@ Responsibilities:
 
 ## Canonical session start
 
-    ./scripts/session_init.sh
-    ./scripts/verify_env.sh
+    /scripts/session_init.sh
+    /scripts/verify_env.sh
 
 If the task requires local services:
 
-    ./scripts/start_local_services.sh
+    /scripts/start_local_services.sh
 
 ## Success criteria
 
 The environment is considered valid only if:
-- verify_env.sh completes successfully
+- `/scripts/verify_env.sh` completes successfully
 - no required tools or dependencies are missing
 - required config files and directories exist
 - required services (if needed) are reachable
@@ -99,12 +99,12 @@ Do not proceed with implementation work unless these conditions are met.
 
 ## Failure handling
 
-If session_init.sh fails:
+If `/scripts/session_init.sh` fails:
 - stop the session
-- record the failure in session_handoff.md
+- record the failure in `/scripts/session_handoff.md`
 - recommend an environment-fix task
 
-If verify_env.sh fails:
+If `/scripts/verify_env.sh` fails:
 - do not proceed with implementation
 - treat this as a blocking issue
 - record the failure
@@ -114,8 +114,8 @@ Do not partially proceed in a degraded environment.
 
 ## Execution discipline
 
-- always run session_init.sh at the start of a session
-- always run verify_env.sh before implementation
+- always run `/scripts/session_init.sh` at the start of a session
+- always run `/scripts/verify_env.sh` before implementation
 - do not skip verification
 - do not assume environment correctness
 - rerun verification if environment changes during the session

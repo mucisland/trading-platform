@@ -62,8 +62,8 @@ Do not mix modes.
     ./scripts/run_fast_checks.sh
 
 7. Write artifacts
-- update handoff
-- update backlog
+- update `/status/session_handoff.md` (current handoff)
+- update `/backlog/fix_plan.md`
 
 ## Task selection rules
 
@@ -80,6 +80,44 @@ Persistent state:
 - specs → correctness
 - runbooks → procedures
 - patterns → learned behavior
+
+## Session handoff usage
+
+`/status/session_handoff.md` is the current continuity artifact between sessions.
+
+It exists to provide the minimum current state needed for the next agent to continue work correctly under limited context.
+
+### At session start
+- read `/status/session_handoff.md` when:
+  - the selected backlog task references prior work, or
+  - the previous session was incomplete, blocked, or partially finished
+- use it to reconstruct:
+  - recent relevant changes
+  - blockers
+  - what was intentionally left unchanged
+  - the next recommended task
+
+### During the session
+- treat `/status/session_handoff.md` as read-only context
+- do not append running notes or incremental logs to it
+
+### At session end
+- overwrite `/status/session_handoff.md` with the latest relevant handoff state
+- keep only current actionable information
+- remove obsolete or superseded details
+
+### Scope rules
+- keep the file concise and focused
+- do not use it as a backlog replacement
+- do not duplicate spec content unless needed for immediate continuation
+- prefer structured statements over narrative summaries
+
+### History handling
+- `/status/session_handoff.md` is the current handoff only
+- if older handoffs need to be preserved, store them in `/status/handoff_history/`
+- do not turn the current handoff into an append-only history log
+
+The goal is fast and accurate reconstruction of development state for the next session, not historical completeness.
 
 ## Artifact-writing rules
 
