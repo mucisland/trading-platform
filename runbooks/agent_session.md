@@ -13,15 +13,15 @@ It applies to both:
 Each session:
 
 1. initializes the environment
-2. selects or receives a task
+2. selects or receives a task (implementation mode)
 3. loads minimal context
 4. generates a prompt
 5. optionally invokes an agent
 6. produces updated repository artifacts
 
 Sessions are:
-- bounded
-- stateless (via artifacts)
+- bounded (one task per session)
+- stateless (continuity via artifacts)
 - restartable
 
 ## Command
@@ -44,14 +44,15 @@ Optional:
 
     --task FP-001
 
-Overrides automatic selection.
+- overrides automatic selection
 
 ### Planning mode
 
     --mode planning
 
 - updates backlog and planning state
-- may decide recovery mode
+- ensures backlog satisfies selection contract
+- evaluates whether recovery mode is needed
 
 Optional:
 
@@ -59,37 +60,52 @@ Optional:
 
 ## Context inputs
 
-By default:
+The harness always loads:
 
 - AGENT.md
 - agent/workflow.md
 - agent/project_rules.md
 - agent/patterns.md
 - backlog
-- session_handoff
+- session_handoff.md
 
-Optional:
+Optional inputs:
 
     --spec <file>
     --runbook <file>
     --file <file>
 
+These are injected into the prompt as structured context.
+
 ## Task selection
 
-In implementation mode:
+### Task sources
 
-- tasks are loaded from:
-  - `/backlog/open/*.md` (preferred)
-  - fallback: `fix_plan.md`
-- selection is deterministic:
-  - open
-  - not blocked
-  - dependencies satisfied
-  - acceptance_signal defined
-  - smallest priority value wins
+Tasks are loaded in this order:
 
-If no task is selectable:
-- switch to planning mode
+1. `/backlog/open/*.md` (preferred)
+2. fallback: `/backlog/fix_plan.md`
+
+### Selection rules
+
+The selector chooses a task that is:
+
+- status = open
+- not blocked (`blocked_by` empty)
+- dependencies satisfied
+- has an `acceptance_signal`
+- has defined `scope`
+
+Tasks are ranked by:
+
+1. priority (high → medium → low)
+2. milestone
+3. task id
+
+### If no task is selectable
+
+- implementation mode fails
+- switch to planning mode to repair backlog
 
 ## Outputs
 
@@ -100,26 +116,40 @@ The harness writes:
 
 ## Agent invocation
 
-To invoke directly:
+By default:
+- only the prompt is generated
+
+To invoke an agent directly:
 
     --invoke --agent claude-code
     --invoke --agent codex
 
-Otherwise:
-- prompt is generated for manual use
+Example:
+
+    python scripts/run_agent_session.py \
+        --mode implementation \
+        --invoke --agent claude-code
 
 ## Recovery mode
 
 Planning sessions evaluate whether recovery is required.
 
-You can force recovery evaluation:
+Recovery means:
+- restoring a previous known-good repository state
+- stopping forward implementation work
+
+### Forcing recovery evaluation
 
     --force-recovery
 
-Recovery decisions:
-- are made by the planning agent
-- executed by the harness (future step)
-- recorded in:
+This injects an explicit recovery instruction into the planning prompt.
+
+### Recovery ownership
+
+- Implementation agents may recommend recovery
+- Planning agent decides if recovery is required
+- Harness executes rollback (future extension)
+- Recovery must be recorded in:
   - session_handoff.md
   - backlog
 
@@ -128,31 +158,37 @@ Recovery decisions:
 Agents must:
 
 - follow AGENT.md and workflow rules
+- operate within one session and one task
 - update:
-  - session_handoff.md
-  - backlog (if needed)
-- keep changes small and scoped
+  - `/status/session_handoff.md`
+  - `/backlog/fix_plan.md` (if needed)
+- keep changes minimal and scoped
+- run validation
 - respect version control policy
 
 ## Failure handling
 
-If:
+If any of the following occurs:
 
-- no task is selectable
-- environment fails
-- prompt generation fails
+- no selectable task
+- environment setup failure
+- script failure
+- prompt generation failure
 
 Then:
 
 - stop execution
-- fix via planning or environment tasks
+- switch to planning or environment repair tasks
 
 ## Core principle
 
 Each session must produce:
 
-- a clear state transition
-- updated artifacts
+- a clear and minimal state transition
+- updated repository artifacts
 - a valid next step
 
-The system must remain restartable at all times.
+The system must remain:
+- deterministic
+- observable
+- restartable at all times
