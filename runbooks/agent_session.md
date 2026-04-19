@@ -199,6 +199,29 @@ Verification writes:
 
 Do not commit or push session changes unless verification passes.
 
+## Finalizing a session
+
+After post-session verification passes, finalize the session with:
+
+    python scripts/finalize_session.py
+
+This will:
+- read the current session manifest
+- read the current session handoff
+- generate a structured commit message
+- create exactly one commit for the session
+
+To also push the commit:
+
+    python scripts/finalize_session.py --push
+
+Planning sessions are not committed by default.
+To allow a planning-session commit:
+
+    python scripts/finalize_session.py --allow-planning-commit
+
+Do not finalize a session unless post-session verification has passed.
+
 ## Core principle
 
 Each session must produce:
