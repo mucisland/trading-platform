@@ -2,12 +2,12 @@
 
 ## Purpose
 
-This file captures recurring patterns, failures, and best practices discovered during development.
+This file captures recurring patterns, failure patterns, and best practices discovered during development.
 
 It exists to:
 - prevent repeated mistakes
 - improve agent performance over time
-- encode "Ralph warnings" into durable guidance
+- encode failure prevention knowledge into durable guidance
 
 ## How to use
 
@@ -21,7 +21,7 @@ Each entry should include:
 - context
 - failure mode
 - root cause
-- recommended pattern
+- recommended pattern / prevention rules
 
 ## Format
 
