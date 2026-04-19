@@ -76,6 +76,42 @@ Do not mix modes.
 - one task per session
 - refine unclear tasks before implementation
 
+## Task selection contract
+
+The implementation task selector operates deterministically.
+
+A task is selectable only if:
+- status is "open"
+- it is not blocked
+- all dependencies are satisfied
+- it defines an acceptance signal
+- it is scoped to a single session
+
+Tasks are selected by:
+1. priority
+2. milestone relevance
+3. stable ordering (e.g. task id)
+
+Planning agents must ensure that:
+- tasks satisfy these conditions
+- tasks are not oversized
+- dependencies are explicitly defined
+- priorities are meaningful
+
+Tasks that do not satisfy these conditions may never be selected.
+
+## Planning discipline
+
+Planning must produce implementation tasks that are:
+- explicit
+- bounded
+- verifiable
+- ready for deterministic selection
+
+Also:
+- Do not create vague or oversized tasks.
+- Do not leave dependencies or acceptance criteria implicit.
+
 ## Artifact-driven memory model
 
 Persistent state:
@@ -190,3 +226,41 @@ If a failure pattern repeats:
 - do not refactor unrelated code
 - do not add unnecessary abstractions
 - do not assume intent beyond artifacts
+
+## Recovery mode
+
+Recovery mode exists to restore the repository to a previously trusted state when current progress is judged unsound, unstable, or misaligned.
+
+### Recovery trigger
+
+Recovery mode should be considered when:
+- repeated failures indicate systemic drift
+- architecture boundaries have been violated across sessions
+- recent work has degraded correctness, clarity, or milestone progress
+- a previously validated state is more trustworthy than the current state
+
+### Ownership
+
+- Implementation agents may detect recovery conditions and recommend recovery mode.
+- Implementation agents must not independently execute rollback.
+- The planning/recovery agent owns the decision whether recovery mode is required.
+- The harness executes rollback and restoration actions deterministically.
+
+### Workflow effect
+
+When recovery mode is the safer option:
+- stop forward implementation work
+- record the recovery reason
+- switch to planning/recovery work
+- do not continue patching the current line of development
+
+### Artifact requirements
+
+Recovery decisions and results must be recorded in:
+- `/status/session_handoff.md`
+- `/backlog/fix_plan.md`
+
+The repository must clearly state:
+- why recovery was needed
+- what state was restored
+- what the next recommended task is
