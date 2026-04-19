@@ -180,6 +180,25 @@ Then:
 - stop execution
 - switch to planning or environment repair tasks
 
+## Post-session verification
+
+After the agent finishes, run:
+
+    python scripts/verify_session_outcome.py
+
+This verifies that:
+- `status/session_handoff.md` was updated
+- required session artifacts exist
+- validation results are recorded
+- task result is valid
+- blocked or partial sessions are documented correctly
+
+Verification writes:
+
+    .artifacts/current_session_verification.json
+
+Do not commit or push session changes unless verification passes.
+
 ## Core principle
 
 Each session must produce:

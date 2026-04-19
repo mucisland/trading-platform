@@ -227,6 +227,19 @@ If a failure pattern repeats:
 - do not add unnecessary abstractions
 - do not assume intent beyond artifacts
 
+## Post-session verification
+
+After each session, the harness must verify that the session outcome is valid before version-control actions are allowed.
+
+Verification must check:
+- required artifacts were updated
+- handoff state is complete and consistent
+- validation results are present
+- task result is well-formed
+- blocked or partial outcomes are properly documented
+
+Do not commit or push session results unless post-session verification passes.
+
 ## Recovery mode
 
 Recovery mode exists to restore the repository to a previously trusted state when current progress is judged unsound, unstable, or misaligned.
