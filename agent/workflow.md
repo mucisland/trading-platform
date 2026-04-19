@@ -17,12 +17,14 @@ They must be followed for every session unless explicitly overridden by higher-p
 ## Operating modes
 
 ### Implementation mode
+
 - exactly one backlog item
 - no scope expansion
 - minimal context loading
 - targeted validation
 
 ### Planning mode
+
 Used when:
 - no valid task exists
 - backlog is unclear
@@ -55,7 +57,9 @@ Do not mix modes.
 - do not assume missing implementation
 
 5. Execute
-- minimal scoped change only
+- implement only the selected backlog task
+- modify only required components
+- do not expand scope beyond the task definition
 
 6. Validate
 
@@ -81,6 +85,9 @@ Persistent state:
 - runbooks → procedures
 - patterns → learned behavior
 
+Artifacts are the only reliable cross-session memory.
+Do not rely on implicit knowledge from previous sessions.
+
 ## Session handoff usage
 
 `/status/session_handoff.md` is the current continuity artifact between sessions.
@@ -88,31 +95,40 @@ Persistent state:
 It exists to provide the minimum current state needed for the next agent to continue work correctly under limited context.
 
 ### At session start
-- read `/status/session_handoff.md` when:
-  - the selected backlog task references prior work, or
+
+- read `/status/session_handoff.md` unless it is clearly irrelevant to the selected task
+- it is especially relevant when:
+  - the selected backlog task references prior work
   - the previous session was incomplete, blocked, or partially finished
+
 - use it to reconstruct:
   - recent relevant changes
   - blockers
   - what was intentionally left unchanged
   - the next recommended task
 
+- validate assumptions from the handoff against code and specs when correctness matters
+
 ### During the session
+
 - treat `/status/session_handoff.md` as read-only context
 - do not append running notes or incremental logs to it
 
 ### At session end
+
 - overwrite `/status/session_handoff.md` with the latest relevant handoff state
 - keep only current actionable information
 - remove obsolete or superseded details
 
 ### Scope rules
+
 - keep the file concise and focused
 - do not use it as a backlog replacement
 - do not duplicate spec content unless needed for immediate continuation
 - prefer structured statements over narrative summaries
 
 ### History handling
+
 - `/status/session_handoff.md` is the current handoff only
 - if older handoffs need to be preserved, store them in `/status/handoff_history/`
 - do not turn the current handoff into an append-only history log
@@ -131,6 +147,7 @@ When writing:
 - state what changed and what did not
 - avoid vague wording
 - do not rely on prior session memory
+- prefer concise structured statements over long narrative explanations
 
 ## Validation rules
 
@@ -146,8 +163,10 @@ Escalate validation when:
 - behavior is uncertain or not well understood
 - the change affects persisted state or data integrity
 
-Do not skip validation.
-Do not assume correctness without verification.
+Also:
+- Do not skip validation.
+- Do not assume correctness without verification.
+- treat failed validation as task not complete
 
 ## Failure handling
 
@@ -156,6 +175,7 @@ If blocked:
 - record blocker
 - recommend next task
 - do not workaround silently
+- do not attempt large workarounds outside task scope
 
 ## Continuous improvement
 
