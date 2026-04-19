@@ -41,7 +41,6 @@ The system consists of:
 - governs readiness and resume
 
 ## Restartability rules
-
 - correctness must not depend on graceful shutdown
 - crash is normal behavior
 - all correctness-critical streams must be durable
@@ -53,13 +52,23 @@ The system consists of:
 - replay must complete before live rejoin
 
 ## Forbidden behavior
-
 - implicit netting across traders
 - hidden cross-trader coordination
 - reliance on in-memory-only state for correctness
 
-## Project priorities
+## Validation escalation (project-specific)
+Escalate validation when changes affect:
 
+- recovery behavior
+- execution logic
+- multi-trader interactions
+- cross-domain boundaries
+- event schemas
+- snapshot or replay logic
+
+These areas are correctness-critical for this system.
+
+## Project priorities
 For this project, optimize in this order unless an explicit recorded decision says otherwise:
 1. restartability
 2. simplicity

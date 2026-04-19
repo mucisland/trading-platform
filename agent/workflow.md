@@ -134,17 +134,20 @@ When writing:
 
 ## Validation rules
 
+Run the smallest sufficient validation set for the current task.
+
 Default:
 
     ./scripts/run_fast_checks.sh
 
-Escalate when touching:
-- recovery
-- execution
-- multi-trader behavior
-- cross-domain boundaries
-- event schemas
-- replay/snapshots
+Escalate validation when:
+- changes affect multiple components or boundaries
+- correctness risk is high
+- behavior is uncertain or not well understood
+- the change affects persisted state or data integrity
+
+Do not skip validation.
+Do not assume correctness without verification.
 
 ## Failure handling
 
