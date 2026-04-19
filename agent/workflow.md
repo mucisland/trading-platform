@@ -31,7 +31,7 @@ Used when:
 - blocked by missing decisions
 
 Output:
-- updated `/backlog/fix_plan.md`
+- updated `/backlog/open/` (or, as fallback, `/backlog/fix_plan.md`)
 
 Do not mix modes.
 
@@ -67,7 +67,64 @@ Do not mix modes.
 
 7. Write artifacts
 - update `/status/session_handoff.md` (current handoff)
-- update `/backlog/fix_plan.md`
+- update `/backlog/open/` (or, as fallback, `/backlog/fix_plan.md`)
+
+## Execution Contract
+
+### Purpose
+
+Defines the authoritative rules for task execution, validation, and persistence.
+
+This section complements (but does not replace):
+- workflow loop
+- task selection rules
+- artifact handling
+
+### Execution discipline
+
+During implementation:
+
+- execute exactly one selected task
+- do not expand scope
+- do not fix unrelated issues
+- record unrelated findings as new backlog tasks
+
+### Validation requirement
+
+After implementation:
+
+    ./scripts/run_fast_checks.sh
+
+- validation must confirm acceptance signal
+- failed validation means task is not complete
+
+### Version control policy
+
+After a successful session:
+
+- create exactly one commit per task
+- commit must reference the task ID
+- do not bundle multiple tasks
+- do not commit unvalidated work
+
+If blocked:
+
+- do not commit partial work unless explicitly required
+- record state in session handoff
+
+### Determinism requirement
+
+All execution must be:
+
+- reproducible from repository artifacts
+- independent of agent interpretation
+- explainable post hoc
+
+### Relationship to other rules
+
+- Task selection is defined in `/agent/task_selection.md`
+- Task creation is defined in `/agent/task_creation.md`
+- Execution flow is defined in the workflow loop above
 
 ## Task selection rules
 
@@ -75,30 +132,6 @@ Do not mix modes.
 - do not invent tasks
 - one task per session
 - refine unclear tasks before implementation
-
-## Task selection contract
-
-The implementation task selector operates deterministically.
-
-A task is selectable only if:
-- status is "open"
-- it is not blocked
-- all dependencies are satisfied
-- it defines an acceptance signal
-- it is scoped to a single session
-
-Tasks are selected by:
-1. priority
-2. milestone relevance
-3. stable ordering (e.g. task id)
-
-Planning agents must ensure that:
-- tasks satisfy these conditions
-- tasks are not oversized
-- dependencies are explicitly defined
-- priorities are meaningful
-
-Tasks that do not satisfy these conditions may never be selected.
 
 ## Planning discipline
 
@@ -271,9 +304,69 @@ When recovery mode is the safer option:
 
 Recovery decisions and results must be recorded in:
 - `/status/session_handoff.md`
-- `/backlog/fix_plan.md`
+- `/backlog/open/` (or, as a fallback, in `/backlog/fix_plan.md`)
 
 The repository must clearly state:
 - why recovery was needed
 - what state was restored
 - what the next recommended task is
+
+## Task creation governance
+
+When operating in planning mode, the agent must follow:
+
+    /agent/task_creation.md
+
+as the authoritative specification for creating and updating backlog tasks.
+
+The agent must:
+
+- apply all task creation rules defined in that document
+- not invent alternative task formats or structures
+- not omit required fields
+- not violate task identity, granularity, or dependency rules
+
+If a conflict exists between:
+- `agent/task_creation.md`
+- other artifacts
+
+then:
+
+- the agent must not proceed with task creation
+- the conflict must be recorded in `/backlog/fix_plan.md`
+- a clarification task must be created
+
+The `agent/task_creation.md` document is considered normative for:
+- task structure
+- task identity
+- backlog evolution rules
+
+## Task selection governance
+
+When selecting a task for implementation, the agent must follow:
+
+    /agent/task_selection.md
+
+as the authoritative specification for task selection.
+
+The agent must:
+
+- select exactly one task
+- not invent tasks
+- not modify task scope during selection
+- not skip higher-priority tasks without explicit reason
+
+If no valid task exists:
+
+- switch to planning mode
+- update the backlog accordingly
+
+If multiple tasks appear equally valid:
+
+- resolve using deterministic tie-breaking rules defined in `/agent/task_selection.md`
+
+Task selection must be:
+
+- deterministic
+- reproducible
+- explainable from repository artifacts alone

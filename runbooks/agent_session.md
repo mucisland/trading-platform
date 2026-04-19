@@ -161,7 +161,7 @@ Agents must:
 - operate within one session and one task
 - update:
   - `/status/session_handoff.md`
-  - `/backlog/fix_plan.md` (if needed)
+  - `/backlog/open/` (or, as fallback, `/backlog/fix_plan.md`), if needed
 - keep changes minimal and scoped
 - run validation
 - respect version control policy

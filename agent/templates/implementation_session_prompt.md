@@ -74,7 +74,7 @@ At the end of the session, provide:
 You must update:
 
 - `/status/session_handoff.md`
-- `/backlog/fix_plan.md` (if task status, blockers, or discoveries changed)
+- `/backlog/open/` (or, as fallback, `/backlog/fix_plan.md`), if task status, blockers, or discoveries changed
 
 Update `/agent/patterns.md` only if a clear repeated failure pattern was identified.
 

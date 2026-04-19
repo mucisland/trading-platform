@@ -40,7 +40,7 @@ At the start of every session:
     ./scripts/verify_env.sh
 
 Then:
-- select exactly one task from `/backlog/fix_plan.md`
+- select exactly one task from `/backlog/open/` (or, as fallback, from `/backlog/fix_plan.md`)
 - follow `/agent/workflow.md`
 
 ## Core constraints

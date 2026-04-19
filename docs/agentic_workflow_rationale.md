@@ -109,7 +109,7 @@ Without structured handoff:
 Use explicit artifacts:
 
 - `/status/session_handoff.md` → current execution state
-- `/backlog/fix_plan.md` → task selection and planning
+- `/backlog/open/` (or, as fallback, `/backlog/fix_plan.md`) → task selection and planning
 
 Artifacts are:
 - structured

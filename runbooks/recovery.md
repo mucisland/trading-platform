@@ -60,7 +60,7 @@ Owns:
 
 Use:
 - `/status/session_handoff.md`
-- `/backlog/fix_plan.md`
+- `/backlog/open/` (or, as fallback, `/backlog/fix_plan.md`)
 - `/status/checkpoints.md` if available
 - recent validation results
 - recent commit history
@@ -84,7 +84,7 @@ Prefer explicit checkpoints or milestone-stable states when available.
 4. Select the rollback target.
 5. Record the recovery plan in:
    - `/status/session_handoff.md`
-   - `/backlog/fix_plan.md`
+   - `/backlog/open/` (or, as fallback, `/backlog/fix_plan.md`)
 6. Execute the restore action through the harness.
 7. Validate the restored state.
 8. Update backlog and handoff with:

@@ -13,6 +13,7 @@ planning
   - agent/workflow.md
   - agent/project_rules.md
   - agent/patterns.md
+  - agent/task_creation.md
 
 - The repository is the only authoritative source of truth.
 - Do not implement feature code.
@@ -49,6 +50,7 @@ You are responsible for deciding whether the workflow should enter recovery mode
 ## Required behavior
 
 - Follow the planning discipline defined in agent/workflow.md.
+- Follow the task creation rules defined in agent/task_creation.md.
 - Respect the task selection contract defined in agent/project_rules.md.
 - Ensure backlog tasks are:
   - explicit
@@ -118,7 +120,7 @@ If recovery is not required, provide:
 
 You must update:
 
-- `/backlog/fix_plan.md`
+- `/backlog/open/` (or, as fallback, `/backlog/fix_plan.md`)
 - `/status/session_handoff.md` (if planning affects immediate next-session guidance)
 
 If recovery is required, updates must include:
