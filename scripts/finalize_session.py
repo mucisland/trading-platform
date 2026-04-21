@@ -8,7 +8,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +18,7 @@ HANDOFF = ROOT / "status" / "session_handoff.md"
 BACKLOG = ROOT / "backlog" / "fix_plan.md"
 MANIFEST = ARTIFACTS_DIR / "current_session_manifest.json"
 VERIFICATION = ARTIFACTS_DIR / "current_session_verification.json"
+RECOVERY_RESULT = ARTIFACTS_DIR / "current_recovery_result.json"
 
 
 @dataclass
@@ -38,6 +39,11 @@ def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def read_json(path: Path) -> Dict[str, Any]:
+    """Read and decode a JSON file."""
+    return json.loads(read_text(path))
+
+
 def run_git(args: List[str], check: bool = True, capture_output: bool = False) -> subprocess.CompletedProcess[str]:
     """Run a git command from the repository root."""
     return subprocess.run(
@@ -51,7 +57,7 @@ def run_git(args: List[str], check: bool = True, capture_output: bool = False) -
 
 def require_clean_verification() -> dict:
     """Load verification artifact and require that the session is eligible for commit."""
-    data = json.loads(read_text(VERIFICATION))
+    data = read_json(VERIFICATION)
     if not data.get("passed", False):
         raise RuntimeError("Post-session verification did not pass. Refusing to finalize session.")
     if not data.get("eligible_for_commit", False):
@@ -61,7 +67,7 @@ def require_clean_verification() -> dict:
 
 def load_manifest() -> dict:
     """Load the current session manifest."""
-    return json.loads(read_text(MANIFEST))
+    return read_json(MANIFEST)
 
 
 def extract_section(content: str, heading: str) -> str:
@@ -152,7 +158,6 @@ def staged_or_modified_files() -> List[str]:
     for line in result.stdout.splitlines():
         if not line.strip():
             continue
-        # porcelain lines look like "XY path"
         path = line[3:].strip() if len(line) > 3 else line.strip()
         if path:
             files.append(path)
@@ -160,7 +165,7 @@ def staged_or_modified_files() -> List[str]:
 
 
 def ensure_nothing_staged() -> None:
-    """Fail if there are already staged files, to keep one finalize path deterministic."""
+    """Fail if there are already staged files, to keep finalization deterministic."""
     result = run_git(["diff", "--cached", "--name-only"], capture_output=True)
     if result.stdout.strip():
         raise RuntimeError("There are already staged changes. Refusing to finalize ambiguous repository state.")
@@ -187,8 +192,8 @@ def infer_task_summary(manifest: dict) -> str:
     return "session: planning update"
 
 
-def build_commit_message(manifest: dict, outcome: SessionOutcome) -> str:
-    """Construct a structured commit message for the completed session."""
+def build_standard_commit_message(manifest: dict, outcome: SessionOutcome) -> str:
+    """Construct a structured commit message for a normal completed session."""
     header = infer_task_summary(manifest)
 
     lines: List[str] = [header, ""]
@@ -225,6 +230,53 @@ def build_commit_message(manifest: dict, outcome: SessionOutcome) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def build_recovery_commit_message(recovery_result: dict, outcome: SessionOutcome) -> str:
+    """Construct a structured commit message for a recovery execution session."""
+    recovery_id = recovery_result.get("recovery_id", "R-UNKNOWN")
+    target_type = recovery_result.get("rollback_target_type", "unknown")
+    target_value = recovery_result.get("rollback_target_value", "unknown")
+    validation_passed = recovery_result.get("validation_passed", False)
+    commands_run = recovery_result.get("commands_run", [])
+    notes = recovery_result.get("notes", [])
+
+    lines: List[str] = [f"{recovery_id}: recover repository to trusted state {target_value}", ""]
+    lines.append(f"Result: {'done' if validation_passed else 'blocked'}")
+    lines.append("")
+    lines.append("Changes:")
+    lines.append(f"- restored repository to {target_type}:{target_value}")
+    if outcome.changes:
+        for item in outcome.changes:
+            lines.append(f"- {item}")
+    else:
+        lines.append("- recorded recovery history and updated session handoff")
+
+    lines.append("")
+    lines.append("Validation:")
+    if commands_run:
+        for item in commands_run:
+            lines.append(f"- {item}")
+        lines.append(f"- result: {'passed' if validation_passed else 'failed'}")
+    elif outcome.validation_lines:
+        for item in outcome.validation_lines:
+            lines.append(f"- {item}")
+    else:
+        lines.append("- see session_handoff.md")
+
+    if notes:
+        lines.append("")
+        lines.append("Notes:")
+        for item in notes[:6]:
+            lines.append(f"- {item}")
+
+    if outcome.next_task_lines:
+        lines.append("")
+        lines.append("Next:")
+        for item in outcome.next_task_lines:
+            lines.append(f"- {item}")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def write_commit_message(message: str) -> Path:
     """Write the generated commit message to an artifact file."""
     path = ARTIFACTS_DIR / "current_commit_message.txt"
@@ -245,8 +297,15 @@ def push_session() -> None:
     run_git(["push", "origin", branch])
 
 
+def determine_session_kind(manifest: dict) -> str:
+    """Determine whether the session is implementation, planning, or recovery."""
+    if RECOVERY_RESULT.exists():
+        return "recovery"
+    return manifest.get("mode", "implementation")
+
+
 def main() -> int:
-    """Finalize a verified agent session into one structured git commit."""
+    """Finalize a verified session into one structured git commit."""
     parser = argparse.ArgumentParser(description="Finalize a verified agent session into one git commit.")
     parser.add_argument("--push", action="store_true", help="Push after a successful commit")
     parser.add_argument(
@@ -257,11 +316,11 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        verification = require_clean_verification()
+        require_clean_verification()
         manifest = load_manifest()
 
-        mode = manifest.get("mode")
-        if mode == "planning" and not args.allow_planning_commit:
+        session_kind = determine_session_kind(manifest)
+        if session_kind == "planning" and not args.allow_planning_commit:
             raise RuntimeError(
                 "Session mode is planning. Refusing to commit unless --allow-planning-commit is provided."
             )
@@ -272,7 +331,12 @@ def main() -> int:
         if not changed_files:
             raise RuntimeError("No changed files detected after staging.")
 
-        commit_message = build_commit_message(manifest, outcome)
+        if session_kind == "recovery":
+            recovery_result = read_json(RECOVERY_RESULT)
+            commit_message = build_recovery_commit_message(recovery_result, outcome)
+        else:
+            commit_message = build_standard_commit_message(manifest, outcome)
+
         message_file = write_commit_message(commit_message)
 
         print(f"Prepared commit message at: {message_file}")

@@ -153,6 +153,10 @@ This injects an explicit recovery instruction into the planning prompt.
   - session_handoff.md
   - backlog
 
+### Recovery execution
+
+Recovery execution is governed by `/runbooks/recovery.md`.
+
 ## Expected agent behavior
 
 Agents must:

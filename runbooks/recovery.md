@@ -2,106 +2,147 @@
 
 ## Purpose
 
-This runbook defines how the workflow restores the repository to a previously trusted state when current progress is judged incorrect, unstable, or misaligned.
+Defines the canonical procedure for restoring the repository to a previously trusted state.
 
-It is intended primarily for:
-- planning/recovery agents
-- the harness
-- human maintainers
+This document is the authoritative source for how recovery is executed.
 
-Implementation agents normally only need to know that recovery mode exists and that they may recommend it.
+## Scope
 
-## Recovery principles
+This runbook is used when:
 
-- rollback is a normal workflow control, not an exceptional failure response
-- prefer restoring a trusted state over continuing from an untrustworthy one
-- choose the smallest rollback that restores confidence
-- record recovery decisions explicitly in repository artifacts
+- recovery mode has been triggered (see `/agent/workflow.md`)
+- a recovery plan artifact exists
 
-## Recovery types
+This runbook defines how recovery is executed, not when it is chosen.
 
-### Tactical recovery
-Use when:
-- one session or a small recent change set is wrong
-- the rest of the line of development is still trustworthy
+## Inputs
 
-### Strategic recovery
-Use when:
-- multiple sessions are based on a bad assumption
-- architecture has drifted
-- milestone progress has degraded across several commits or merges
+### Recovery plan artifact
 
-## Recovery ownership
+Recovery execution requires a valid recovery plan artifact:
 
-### Implementation agent
-May:
-- detect warning signs
-- recommend recovery mode
-- record reasons in handoff/backlog
+    .artifacts/current_recovery_plan.json
 
-Must not:
-- decide rollback scope
-- execute rollback
+Its schema and validation rules are defined in:
 
-### Planning/recovery agent
-Owns:
-- deciding whether recovery mode is required
-- selecting the rollback target
-- deciding whether the recovery is tactical or strategic
-- updating planning artifacts after the decision
+    /docs/recovery_plan_schema.md
 
-### Harness
-Owns:
-- executing rollback or restore actions deterministically
-- validating the restored state
-- preserving repository consistency
+Recovery must not proceed if this artifact is missing or incomplete.
 
-## Recovery inputs
+## Recovery plan validation
 
-Use:
-- `/status/session_handoff.md`
-- `/backlog/open/` (or, as fallback, `/backlog/fix_plan.md`)
-- `/status/checkpoints.md` if available
-- recent validation results
-- recent commit history
-- milestone status
+Before executing recovery, validate the recovery plan artifact against:
 
-## Recovery target selection
+    /docs/recovery_plan_schema.md
 
-Prefer a rollback target that is:
-- previously validated
-- understandable from repository artifacts
-- aligned with current milestone goals
-- the smallest rollback that restores trust
+Recovery must not proceed if:
+- required fields are missing
+- values are invalid
+- rollback target is not restorable
+- required validation commands are missing
 
-Prefer explicit checkpoints or milestone-stable states when available.
+Validation command:
 
-## Recovery procedure
+    python scripts/validate_recovery_plan.py
 
-1. Stop forward implementation work.
-2. Record the recovery reason.
-3. Determine whether the recovery is tactical or strategic.
-4. Select the rollback target.
-5. Record the recovery plan in:
-   - `/status/session_handoff.md`
-   - `/backlog/open/` (or, as fallback, `/backlog/fix_plan.md`)
-6. Execute the restore action through the harness.
-7. Validate the restored state.
-8. Update backlog and handoff with:
-   - what was rolled back
-   - why it was rolled back
-   - validation status after restoration
-   - next recommended planning or implementation task
+This writes:
 
-## Documentation requirements
+    .artifacts/current_recovery_plan_validation.json
 
-Every recovery must record:
-- recovery reason
-- rollback target
-- affected task(s) or commit range
-- validation result after restoration
-- next recommended task
+Recovery must not proceed unless this validation passes.
 
-## Core principle
+## Recovery Procedure
 
-Repository history must support safe restoration, not only forward progress.
+### Step 1 — Confirm recovery plan
+
+- verify recovery_required = true
+- verify rollback_target exists
+- verify artifact completeness
+
+If validation fails:
+- abort recovery
+- record blocker in session handoff
+
+### Step 2 — Stop forward work
+
+- do not continue implementation tasks
+
+### Step 3 — Prepare repository
+
+- ensure working tree is clean or explicitly handled
+- do not lose uncommitted changes silently
+
+### Step 4 — Execute rollback
+
+Run:
+
+    python scripts/execute_recovery.py
+
+This command:
+
+1. validates the recovery plan
+2. restores the repository to the rollback target
+3. runs post-restore validation
+4. writes recovery history
+5. updates session handoff
+6. writes `.artifacts/current_recovery_result.json`
+
+Recovery execution must not proceed unless:
+
+    python scripts/validate_recovery_plan.py
+
+has passed.
+
+### Step 5 — Reinitialize environment
+
+    ./scripts/session_init.sh
+    ./scripts/verify_env.sh
+
+### Step 6 — Validate restored state
+
+Run:
+
+    ./scripts/run_fast_checks.sh
+
+and any commands from:
+
+    post_restore_validation
+
+If validation fails:
+- stop recovery
+- record failure
+
+### Step 7 — Create recovery commit / Finalizing recovery
+
+After recovery execution succeeds and post-session verification passes, finalize the recovery event through the normal finalization path:
+
+    python scripts/finalize_session.py
+
+Recovery sessions are detected automatically by the presence of:
+
+    .artifacts/current_recovery_result.json
+
+### Step 8 — Resume workflow
+
+Continue with:
+
+    next_recommended_task
+
+## Failure handling
+
+If any step fails:
+
+- stop recovery
+- record failure in session handoff
+- do not proceed to commit
+
+## Constraints
+
+- do not execute recovery without a valid plan artifact
+- do not skip validation after rollback
+- do not skip writing recovery history
+
+## References
+
+- Governance: `/agent/workflow.md`
+- Version control: `/agent/version_control.md`
