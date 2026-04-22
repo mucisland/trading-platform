@@ -13,14 +13,14 @@ from typing import Any, Dict, List
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ARTIFACTS_DIR = ROOT / ".session-artifacts"
+SESSION_ARTIFACTS_DIR = ROOT / ".session-artifacts"
 
 HANDOFF = ROOT / "status" / "session_handoff.md"
 HANDOFF_HISTORY_DIR = ROOT / "status" / "handoff_history"
-BACKLOG = ROOT / "backlog" / "fix_plan.md"
-MANIFEST = ARTIFACTS_DIR / "current_session_manifest.json"
-VERIFICATION = ARTIFACTS_DIR / "current_session_verification.json"
-RECOVERY_RESULT = ARTIFACTS_DIR / "current_recovery_result.json"
+MANIFEST = SESSION_ARTIFACTS_DIR / "current_session_manifest.json"
+VERIFICATION = SESSION_ARTIFACTS_DIR / "current_session_verification.json"
+RECOVERY_RESULT = SESSION_ARTIFACTS_DIR / "current_recovery_result.json"
+COMMIT_MESSAGE_ARTIFACT = SESSION_ARTIFACTS_DIR / "current_commit_message.txt"
 
 
 @dataclass
@@ -46,7 +46,12 @@ def read_json(path: Path) -> Dict[str, Any]:
     return json.loads(read_text(path))
 
 
-def run_git(args: List[str], check: bool = True, capture_output: bool = False) -> subprocess.CompletedProcess[str]:
+def run_git(
+    args: List[str],
+    *,
+    check: bool = True,
+    capture_output: bool = False,
+) -> subprocess.CompletedProcess[str]:
     """Run a git command from the repository root."""
     return subprocess.run(
         ["git", *args],
@@ -58,12 +63,16 @@ def run_git(args: List[str], check: bool = True, capture_output: bool = False) -
 
 
 def require_clean_verification() -> dict:
-    """Load verification artifact and require that the session is eligible for commit."""
+    """Require that post-session verification passed and commit is allowed."""
     data = read_json(VERIFICATION)
     if not data.get("passed", False):
-        raise RuntimeError("Post-session verification did not pass. Refusing to finalize session.")
+        raise RuntimeError(
+            "Post-session verification did not pass. Refusing to finalize session."
+        )
     if not data.get("eligible_for_commit", False):
-        raise RuntimeError("Session is not eligible for commit. Refusing to finalize session.")
+        raise RuntimeError(
+            "Session is not eligible for commit. Refusing to finalize session."
+        )
     return data
 
 
@@ -87,13 +96,13 @@ def extract_status(content: str) -> str:
         flags=re.MULTILINE | re.IGNORECASE,
     )
     if not match:
-        raise ValueError("Could not extract task status from session_handoff.md")
+        raise ValueError("Could not extract task status from status/session_handoff.md")
     return match.group(1).lower()
 
 
 def extract_bullets(section_text: str) -> List[str]:
     """Extract bullet items from a markdown section."""
-    items = []
+    items: List[str] = []
     for line in section_text.splitlines():
         match = re.match(r"^\s*-\s+(.*)$", line.rstrip())
         if match:
@@ -106,22 +115,19 @@ def extract_bullets(section_text: str) -> List[str]:
 def extract_changes(content: str) -> List[str]:
     """Extract high-signal change summary lines from the handoff."""
     section = extract_section(content, "Changes made")
-    bullets = extract_bullets(section)
-    return bullets[:6]
+    return extract_bullets(section)[:6]
 
 
 def extract_validation_lines(content: str) -> List[str]:
     """Extract validation summary lines from the handoff."""
     section = extract_section(content, "Validation run")
-    bullets = extract_bullets(section)
-    return bullets[:6]
+    return extract_bullets(section)[:6]
 
 
 def extract_blockers(content: str) -> List[str]:
     """Extract blocker lines from the handoff."""
     section = extract_section(content, "Blockers")
-    bullets = extract_bullets(section)
-    return bullets[:6]
+    return extract_bullets(section)[:6]
 
 
 def extract_next_task_lines(content: str) -> List[str]:
@@ -153,7 +159,13 @@ def current_branch() -> str:
     return result.stdout.strip()
 
 
-def staged_or_modified_files() -> List[str]:
+def staged_files_exist() -> bool:
+    """Return True if there are already staged changes."""
+    result = run_git(["diff", "--cached", "--name-only"], capture_output=True)
+    return bool(result.stdout.strip())
+
+
+def working_tree_files() -> List[str]:
     """Return modified, added, deleted, or untracked files in the working tree."""
     result = run_git(["status", "--porcelain"], capture_output=True)
     files: List[str] = []
@@ -168,13 +180,14 @@ def staged_or_modified_files() -> List[str]:
 
 def ensure_nothing_staged() -> None:
     """Fail if there are already staged files, to keep finalization deterministic."""
-    result = run_git(["diff", "--cached", "--name-only"], capture_output=True)
-    if result.stdout.strip():
-        raise RuntimeError("There are already staged changes. Refusing to finalize ambiguous repository state.")
+    if staged_files_exist():
+        raise RuntimeError(
+            "There are already staged changes. Refusing to finalize ambiguous repository state."
+        )
 
 
 def ensure_handoff_history_dir() -> None:
-    """Create the handoff history directory if it does not yet exist."""
+    """Create the handoff history directory if needed."""
     HANDOFF_HISTORY_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -192,8 +205,8 @@ def next_handoff_history_id() -> str:
 
 
 def archive_current_handoff() -> Path:
-    """Archive the current session handoff into status/handoff_history/."""
-    handoff_content = read_text(HANDOFF)
+    """Archive the current session handoff as an immutable history entry."""
+    handoff_content = read_text(HANDOFF).rstrip()
     archive_id = next_handoff_history_id()
     timestamp = datetime.now(timezone.utc).isoformat()
 
@@ -202,22 +215,22 @@ def archive_current_handoff() -> Path:
         f"# {archive_id}\n\n"
         f"- archived_from: /status/session_handoff.md\n"
         f"- timestamp: {timestamp}\n\n"
-        f"{handoff_content.rstrip()}\n"
+        f"{handoff_content}\n"
     )
     archive_path.write_text(archive_content, encoding="utf-8")
     return archive_path
 
 
-def stage_session_changes() -> List[str]:
+def stage_all_session_changes() -> List[str]:
     """Stage all current repository changes for the session commit."""
-    files = staged_or_modified_files()
+    files = working_tree_files()
     if not files:
         raise RuntimeError("No repository changes detected. Nothing to finalize.")
     run_git(["add", "-A"])
     return files
 
 
-def infer_task_summary(manifest: dict) -> str:
+def infer_standard_commit_header(manifest: dict) -> str:
     """Build the first-line commit summary from manifest task metadata."""
     task_id = manifest.get("task_id")
     task_title = manifest.get("task_title")
@@ -229,96 +242,24 @@ def infer_task_summary(manifest: dict) -> str:
     return "session: planning update"
 
 
-def build_standard_commit_message(manifest: dict, outcome: SessionOutcome) -> str:
-    """Construct a structured commit message for a normal completed session."""
-    header = infer_task_summary(manifest)
-
-    lines: List[str] = [header, ""]
-    lines.append(f"Result: {outcome.status}")
-    lines.append("")
-
-    lines.append("Changes:")
-    if outcome.changes:
-        for item in outcome.changes:
-            lines.append(f"- {item}")
-    else:
-        lines.append("- see session_handoff.md")
-
-    lines.append("")
-    lines.append("Validation:")
-    if outcome.validation_lines:
-        for item in outcome.validation_lines:
-            lines.append(f"- {item}")
-    else:
-        lines.append("- see session_handoff.md")
-
-    if outcome.blockers:
-        lines.append("")
-        lines.append("Blockers:")
-        for item in outcome.blockers:
-            lines.append(f"- {item}")
-
-    if outcome.next_task_lines:
-        lines.append("")
-        lines.append("Next:")
-        for item in outcome.next_task_lines:
-            lines.append(f"- {item}")
-
-    return "\n".join(lines).rstrip() + "\n"
+def build_standard_commit_message(manifest: dict) -> str:
+    """Construct a minimal task-oriented commit message aligned to version-control policy."""
+    header = infer_standard_commit_header(manifest)
+    return f"{header}\n"
 
 
-def build_recovery_commit_message(recovery_result: dict, outcome: SessionOutcome) -> str:
-    """Construct a structured commit message for a recovery execution session."""
+def build_recovery_commit_message(recovery_result: dict) -> str:
+    """Construct a minimal recovery-specific commit message aligned to version-control policy."""
     recovery_id = recovery_result.get("recovery_id", "R-UNKNOWN")
-    target_type = recovery_result.get("rollback_target_type", "unknown")
     target_value = recovery_result.get("rollback_target_value", "unknown")
-    validation_passed = recovery_result.get("validation_passed", False)
-    commands_run = recovery_result.get("commands_run", [])
-    notes = recovery_result.get("notes", [])
-
-    lines: List[str] = [f"{recovery_id}: recover repository to trusted state {target_value}", ""]
-    lines.append(f"Result: {'done' if validation_passed else 'blocked'}")
-    lines.append("")
-    lines.append("Changes:")
-    lines.append(f"- restored repository to {target_type}:{target_value}")
-    if outcome.changes:
-        for item in outcome.changes:
-            lines.append(f"- {item}")
-    else:
-        lines.append("- recorded recovery history and updated session handoff")
-
-    lines.append("")
-    lines.append("Validation:")
-    if commands_run:
-        for item in commands_run:
-            lines.append(f"- {item}")
-        lines.append(f"- result: {'passed' if validation_passed else 'failed'}")
-    elif outcome.validation_lines:
-        for item in outcome.validation_lines:
-            lines.append(f"- {item}")
-    else:
-        lines.append("- see session_handoff.md")
-
-    if notes:
-        lines.append("")
-        lines.append("Notes:")
-        for item in notes[:6]:
-            lines.append(f"- {item}")
-
-    if outcome.next_task_lines:
-        lines.append("")
-        lines.append("Next:")
-        for item in outcome.next_task_lines:
-            lines.append(f"- {item}")
-
-    return "\n".join(lines).rstrip() + "\n"
+    return f"{recovery_id}: recover repository to trusted state {target_value}\n"
 
 
 def write_commit_message(message: str) -> Path:
     """Write the generated commit message to a session artifact file."""
-    path = ARTIFACTS_DIR / "current_commit_message.txt"
-    path.write_text(message, encoding="utf-8")
-    return path
+    SESSION_ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+    COMMIT_MESSAGE_ARTIFACT.write_text(message, encoding="utf-8")
+    return COMMIT_MESSAGE_ARTIFACT
 
 
 def commit_session(message_file: Path) -> None:
@@ -343,7 +284,9 @@ def determine_session_kind(manifest: dict) -> str:
 
 def main() -> int:
     """Finalize a verified session into one structured git commit."""
-    parser = argparse.ArgumentParser(description="Finalize a verified agent session into one git commit.")
+    parser = argparse.ArgumentParser(
+        description="Finalize a verified agent session into one git commit."
+    )
     parser.add_argument("--push", action="store_true", help="Push after a successful commit")
     parser.add_argument(
         "--allow-planning-commit",
@@ -363,20 +306,20 @@ def main() -> int:
             )
 
         ensure_nothing_staged()
-        outcome = parse_handoff_outcome()
+        parse_handoff_outcome()  # validates handoff shape enough for finalization flow
 
         archive_path = archive_current_handoff()
         print(f"Archived current handoff to: {archive_path}")
 
-        changed_files = stage_session_changes()
+        changed_files = stage_all_session_changes()
         if not changed_files:
             raise RuntimeError("No changed files detected after staging.")
 
         if session_kind == "recovery":
             recovery_result = read_json(RECOVERY_RESULT)
-            commit_message = build_recovery_commit_message(recovery_result, outcome)
+            commit_message = build_recovery_commit_message(recovery_result)
         else:
-            commit_message = build_standard_commit_message(manifest, outcome)
+            commit_message = build_standard_commit_message(manifest)
 
         message_file = write_commit_message(commit_message)
 

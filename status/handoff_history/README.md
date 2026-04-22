@@ -29,6 +29,10 @@ Each file represents the outcome of one completed session and serves as the dura
 The current handoff must always be overwritten at the end of a session.
 It must not be used as a history log.
 
+## Update process
+
+The archive is updated at the end of each session during session finalization.
+
 ## Entry format
 
 Each entry is a direct copy of the current handoff artifact at that time, except that an additional section is added at the top, following this format:
