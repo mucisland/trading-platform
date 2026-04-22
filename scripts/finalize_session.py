@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ARTIFACTS_DIR = ROOT / ".artifacts"
+ARTIFACTS_DIR = ROOT / ".session-artifacts"
 
 HANDOFF = ROOT / "status" / "session_handoff.md"
 BACKLOG = ROOT / "backlog" / "fix_plan.md"

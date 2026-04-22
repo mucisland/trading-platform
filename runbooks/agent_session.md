@@ -111,8 +111,8 @@ Tasks are ranked by:
 
 The harness writes:
 
-- `.artifacts/current_session_prompt.txt`
-- `.artifacts/current_session_manifest.json`
+- `.session-artifacts/current_session_prompt.txt`
+- `.session-artifacts/current_session_manifest.json`
 
 ## Agent invocation
 
@@ -205,7 +205,7 @@ This verifies that:
 
 Verification writes:
 
-    .artifacts/current_session_verification.json
+    .session-artifacts/current_session_verification.json
 
 Do not commit or push session changes unless verification passes.
 

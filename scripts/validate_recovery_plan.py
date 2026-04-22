@@ -11,7 +11,7 @@ from typing import Any, Dict, List
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ARTIFACTS_DIR = ROOT / ".artifacts"
+ARTIFACTS_DIR = ROOT / ".session-artifacts"
 
 RECOVERY_PLAN = ARTIFACTS_DIR / "current_recovery_plan.json"
 RECOVERY_PLAN_VALIDATION = ARTIFACTS_DIR / "current_recovery_plan_validation.json"

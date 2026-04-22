@@ -21,7 +21,7 @@ This runbook defines how recovery is executed, not when it is chosen.
 
 Recovery execution requires a valid recovery plan artifact:
 
-    .artifacts/current_recovery_plan.json
+    .session-artifacts/current_recovery_plan.json
 
 Its schema and validation rules are defined in:
 
@@ -47,7 +47,7 @@ Validation command:
 
 This writes:
 
-    .artifacts/current_recovery_plan_validation.json
+    .session-artifacts/current_recovery_plan_validation.json
 
 Recovery must not proceed unless this validation passes.
 
@@ -85,7 +85,7 @@ This command:
 3. runs post-restore validation
 4. writes recovery history
 5. updates session handoff
-6. writes `.artifacts/current_recovery_result.json`
+6. writes `.session-artifacts/current_recovery_result.json`
 
 Recovery execution must not proceed unless:
 
@@ -120,7 +120,7 @@ After recovery execution succeeds and post-session verification passes, finalize
 
 Recovery sessions are detected automatically by the presence of:
 
-    .artifacts/current_recovery_result.json
+    .session-artifacts/current_recovery_result.json
 
 ### Step 8 — Resume workflow
 

@@ -12,7 +12,7 @@ from typing import List, Optional
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ARTIFACTS_DIR = ROOT / ".artifacts"
+ARTIFACTS_DIR = ROOT / ".session-artifacts"
 HANDOFF = ROOT / "status" / "session_handoff.md"
 MANIFEST = ARTIFACTS_DIR / "current_session_manifest.json"
 PROMPT = ARTIFACTS_DIR / "current_session_prompt.txt"

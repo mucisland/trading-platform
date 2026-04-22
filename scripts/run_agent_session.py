@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Tuple
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ARTIFACTS_DIR = ROOT / ".artifacts"
+ARTIFACTS_DIR = ROOT / ".session-artifacts"
 
 DEFAULT_INSTRUCTION_FILES = [
     ROOT / "AGENT.md",

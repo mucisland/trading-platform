@@ -51,7 +51,7 @@ If the harness rejects a workflow step, the current execution path must stop.
 The rejection must be converted into explicit repository state by:
 
 - recording the failure in durable artifacts
-    - machine-readable: `.artifacts/current_blocker.json`
+    - machine-readable: `.session-artifacts/current_blocker.json`
     - history: `status/blockers/B-xxxxx.md`
 - updating the current session handoff
 - creating or updating the next recommended task

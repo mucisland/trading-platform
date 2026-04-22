@@ -6,7 +6,7 @@ This document defines the machine-readable recovery plan artifact used by the ha
 
 Artifact location:
 
-    .artifacts/current_recovery_plan.json
+    .session-artifacts/current_recovery_plan.json
 
 The planning/recovery agent produces this artifact.
 The harness consumes and validates it before executing recovery.
