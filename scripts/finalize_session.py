@@ -7,14 +7,16 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS_DIR = ROOT / ".session-artifacts"
 
 HANDOFF = ROOT / "status" / "session_handoff.md"
+HANDOFF_HISTORY_DIR = ROOT / "status" / "handoff_history"
 BACKLOG = ROOT / "backlog" / "fix_plan.md"
 MANIFEST = ARTIFACTS_DIR / "current_session_manifest.json"
 VERIFICATION = ARTIFACTS_DIR / "current_session_verification.json"
@@ -171,6 +173,41 @@ def ensure_nothing_staged() -> None:
         raise RuntimeError("There are already staged changes. Refusing to finalize ambiguous repository state.")
 
 
+def ensure_handoff_history_dir() -> None:
+    """Create the handoff history directory if it does not yet exist."""
+    HANDOFF_HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def next_handoff_history_id() -> str:
+    """Allocate the next monotonic handoff-history identifier."""
+    ensure_handoff_history_dir()
+
+    max_id = 0
+    for path in HANDOFF_HISTORY_DIR.glob("H-*.md"):
+        match = re.fullmatch(r"H-(\d{5})", path.stem)
+        if match:
+            max_id = max(max_id, int(match.group(1)))
+
+    return f"H-{max_id + 1:05d}"
+
+
+def archive_current_handoff() -> Path:
+    """Archive the current session handoff into status/handoff_history/."""
+    handoff_content = read_text(HANDOFF)
+    archive_id = next_handoff_history_id()
+    timestamp = datetime.now(timezone.utc).isoformat()
+
+    archive_path = HANDOFF_HISTORY_DIR / f"{archive_id}.md"
+    archive_content = (
+        f"# {archive_id}\n\n"
+        f"- archived_from: /status/session_handoff.md\n"
+        f"- timestamp: {timestamp}\n\n"
+        f"{handoff_content.rstrip()}\n"
+    )
+    archive_path.write_text(archive_content, encoding="utf-8")
+    return archive_path
+
+
 def stage_session_changes() -> List[str]:
     """Stage all current repository changes for the session commit."""
     files = staged_or_modified_files()
@@ -278,7 +315,7 @@ def build_recovery_commit_message(recovery_result: dict, outcome: SessionOutcome
 
 
 def write_commit_message(message: str) -> Path:
-    """Write the generated commit message to an artifact file."""
+    """Write the generated commit message to a session artifact file."""
     path = ARTIFACTS_DIR / "current_commit_message.txt"
     path.write_text(message, encoding="utf-8")
     return path
@@ -327,6 +364,10 @@ def main() -> int:
 
         ensure_nothing_staged()
         outcome = parse_handoff_outcome()
+
+        archive_path = archive_current_handoff()
+        print(f"Archived current handoff to: {archive_path}")
+
         changed_files = stage_session_changes()
         if not changed_files:
             raise RuntimeError("No changed files detected after staging.")

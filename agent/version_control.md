@@ -17,19 +17,44 @@ Version control history must mirror the logical progression of tasks.
 
 ## Commit rules
 
-After a successful implementation session:
+Each session produces at most one commit.
 
-- create exactly one commit
-- the commit must correspond to exactly one task
-- the commit must include all changes required for that task
-- the commit must not include unrelated changes
+A commit represents one completed task or one recovery event and must reflect a coherent repository state.
 
-Do not:
+### Scope
 
-- split one task across multiple commits
-- combine multiple tasks into a single commit
-- commit partial or incomplete work
+- A commit must correspond to exactly one task or one recovery event.
+- Do not split one task across multiple commits.
+- Do not combine multiple tasks into one commit.
+- Do not include changes unrelated to the selected task.
 
+### Inclusion
+
+- Usually, all files changed, added, or removed during a session that are not excluded by `.gitignore` must be included in the commit.
+
+Exceptions:
+- files unrelated to the selected task must not be included
+- ephemeral session artifacts must not be included
+- files explicitly excluded by workflow policy must not be included
+
+### State integrity
+
+- The repository must be in a consistent state at commit time.
+- Commits must not introduce broken or unusable states.
+
+### Incomplete work
+
+- Do not commit partial or incomplete implementation work.
+- Blocked or incomplete sessions must not produce a commit.
+
+### Commit message
+
+- Must include a task ID or recovery ID.
+- Must concisely describe the change.
+
+### Principle
+
+A commit is the atomic, durable representation of one completed unit of work.
 ## Commit preconditions
 
 A commit is allowed only if:
@@ -99,7 +124,11 @@ Do not:
 
 ## History integrity
 
-Agents must treat repository history as authoritative.
+Version control history must remain:
+
+- linear
+- traceable
+- consistent with repository state
 
 Do not:
 
@@ -110,7 +139,7 @@ Do not:
 
 Exception:
 
-- history modification is allowed only in controlled recovery mode executed by the harness
+- controlled recovery execution may restore a previous repository state, but must be recorded as a new recovery commit.
 
 ## Recovery interaction
 
@@ -133,28 +162,33 @@ The harness is responsible for:
 
 ## Recovery commits
 
-Recovery is a first-class workflow event and must be recorded explicitly in version control.
+Recovery must be explicitly recorded in version control.
 
-After a recovery is executed:
+Each recovery execution produces exactly one recovery commit.
 
-- create exactly one recovery commit
-- the commit must:
-  - reference the recovery ID (R-xxxxx)
-  - describe the rollback target
-  - include the recovery reason
-  - reference validation results
-  - state the next recommended task
+### Scope
 
-The recovery commit must include only:
+- A recovery commit represents one recovery event.
+- It must not include unrelated changes.
+- It must not reintroduce reverted implementation code.
 
-- recovery history entry
-- updated session handoff
-- required backlog updates
+### Content
 
-Do not:
+A recovery commit must include:
 
-- reintroduce reverted implementation code
-- modify unrelated files
+- the recovery history entry (`/status/recovery_history/`)
+- the updated session handoff
+- any required backlog updates
+
+### Commit message
+
+- Must include the recovery ID.
+- Must identify the restored target state.
+- Must concisely describe the recovery action.
+
+### Principle
+
+A recovery commit is the durable record that the repository was intentionally restored to a previous trusted state.
 
 ## Recovery history integrity
 

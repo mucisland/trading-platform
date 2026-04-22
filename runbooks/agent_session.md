@@ -133,7 +133,6 @@ Example:
 ## Start of session
 
 At the start of each session:
-- Update handoff history in `/status/handoff_history/` (governed by the `README.md` in this folder)
 - Delete all session-lifetime artifacts from the previous session
 
 ## Recovery mode
@@ -211,6 +210,8 @@ Do not commit or push session changes unless verification passes.
 
 ## Finalizing a session
 
+Before finalizing the session, check if knowledge gained during the session needs to be preserved. This process is governed by `/agent/knowlegde_capture.md`
+
 After post-session verification passes, finalize the session with:
 
     python scripts/finalize_session.py
@@ -218,6 +219,7 @@ After post-session verification passes, finalize the session with:
 This will:
 - read the current session manifest
 - read the current session handoff
+- update handoff history
 - generate a structured commit message
 - create exactly one commit for the session
 
