@@ -130,6 +130,12 @@ Example:
         --mode implementation \
         --invoke --agent claude-code
 
+## Start of session
+
+At the start of each session:
+- Update handoff history in `/status/handoff_history/` (governed by the `README.md` in this folder)
+- Delete all session-lifetime artifacts from the previous session
+
 ## Recovery mode
 
 Planning sessions evaluate whether recovery is required.

@@ -11,7 +11,7 @@ It must:
 
 Do not use this file as an append-only history log.
 
-If historical handoffs are needed, store them in `/status/handoff_history/` and keep this file focused on current state only.
+Store historical handoffs in `/status/handoff_history/` and keep this file focused on current state only.
 
 ## Session metadata
 
