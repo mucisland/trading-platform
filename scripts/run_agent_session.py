@@ -3,16 +3,22 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import subprocess
 import sys
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-
+from typing import Dict, List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
-ARTIFACTS_DIR = ROOT / ".session-artifacts"
+sys.path.insert(0, str(ROOT / "src"))
+
+from trading_platform.dev_harness.task_selector import (  # noqa: E402
+    SelectionResult,
+    extract_task_markdown,
+    load_tasks,
+    select_task,
+)
+
+SESSION_ARTIFACTS_DIR = ROOT / ".session-artifacts"
 
 DEFAULT_INSTRUCTION_FILES = [
     ROOT / "AGENT.md",
@@ -27,36 +33,6 @@ BACKLOG_OPEN_DIR = ROOT / "backlog" / "open"
 
 IMPLEMENTATION_TEMPLATE = ROOT / "agent" / "templates" / "implementation_session_prompt.txt"
 PLANNING_TEMPLATE = ROOT / "agent" / "templates" / "planning_session_prompt.txt"
-
-
-@dataclass
-class Task:
-    """Normalized backlog task metadata used by the selector and prompt builder."""
-
-    task_id: str
-    title: str
-    task_type: str
-    priority: str
-    status: str
-    milestone: str
-    blocked_by: List[str]
-    depends_on: List[str]
-    scope: str
-    acceptance_signal: str
-    files_likely_touched: List[str]
-    notes: List[str]
-    discovered_from: str
-    next_if_done: str
-    next_if_blocked: str
-
-
-@dataclass
-class SelectionResult:
-    """Result of deterministic task selection, including skipped-task reasons."""
-
-    selected_task_id: Optional[str]
-    reason: str
-    skipped: List[Dict[str, str]]
 
 
 def read_text(path: Path) -> str:
@@ -75,192 +51,6 @@ def run_script(path: Path) -> None:
         raise RuntimeError(f"Script failed: {path} (exit {result.returncode})")
 
 
-def parse_bullet_list(value: str) -> List[str]:
-    """Parse a comma-separated inline metadata list into normalized items."""
-    value = value.strip()
-    if not value:
-        return []
-    return [item.strip() for item in value.split(",") if item.strip()]
-
-
-def normalize_priority(value: str) -> int:
-    """Map textual priorities to a stable sortable rank."""
-    mapping = {"high": 0, "medium": 1, "low": 2}
-    return mapping.get(value.strip().lower(), 99)
-
-
-def _parse_task_lines(lines: List[str], task_id: str) -> Task:
-    """Parse task metadata from markdown lines using the shared task schema."""
-    data: Dict[str, str] = {
-        "title": "",
-        "type": "",
-        "priority": "",
-        "status": "",
-        "milestone": "",
-        "blocked_by": "",
-        "depends_on": "",
-        "scope": "",
-        "acceptance_signal": "",
-        "discovered_from": "",
-        "next_if_done": "",
-        "next_if_blocked": "",
-    }
-    files_likely_touched: List[str] = []
-    notes: List[str] = []
-    current_list_field: Optional[str] = None
-
-    for line in lines:
-        stripped = line.rstrip()
-
-        field_match = re.match(r"^\s*-\s+([a-zA-Z0-9_]+):\s*(.*)$", stripped)
-        if field_match:
-            key = field_match.group(1)
-            value = field_match.group(2).strip()
-            current_list_field = None
-
-            if key in ("files_likely_touched", "notes"):
-                current_list_field = key
-                if value:
-                    if key == "files_likely_touched":
-                        files_likely_touched.append(value)
-                    else:
-                        notes.append(value)
-            elif key in data:
-                data[key] = value
-            continue
-
-        list_item_match = re.match(r"^\s*-\s+(.*)$", stripped)
-        if list_item_match and current_list_field:
-            item = list_item_match.group(1).strip()
-            if current_list_field == "files_likely_touched":
-                files_likely_touched.append(item)
-            elif current_list_field == "notes":
-                notes.append(item)
-
-    return Task(
-        task_id=task_id,
-        title=data["title"],
-        task_type=data["type"],
-        priority=data["priority"],
-        status=data["status"],
-        milestone=data["milestone"],
-        blocked_by=parse_bullet_list(data["blocked_by"]),
-        depends_on=parse_bullet_list(data["depends_on"]),
-        scope=data["scope"],
-        acceptance_signal=data["acceptance_signal"],
-        files_likely_touched=files_likely_touched,
-        notes=notes,
-        discovered_from=data["discovered_from"],
-        next_if_done=data["next_if_done"],
-        next_if_blocked=data["next_if_blocked"],
-    )
-
-
-def parse_tasks_from_fix_plan(content: str) -> List[Task]:
-    """Parse embedded task entries from backlog/fix_plan.md."""
-    lines = content.splitlines()
-    tasks: List[Task] = []
-
-    task_indices = [i for i, line in enumerate(lines) if re.match(r"^###\s+FP-\d+\s*$", line.strip())]
-    task_indices.append(len(lines))
-
-    for idx in range(len(task_indices) - 1):
-        start = task_indices[idx]
-        end = task_indices[idx + 1]
-        block = lines[start:end]
-        task_id = block[0].strip().replace("###", "").strip()
-        tasks.append(_parse_task_lines(block[1:], task_id))
-
-    return tasks
-
-
-def parse_task_file(path: Path) -> Task:
-    """Parse one task file from backlog/open using the shared task schema."""
-    content = read_text(path)
-    lines = content.splitlines()
-    return _parse_task_lines(lines, path.stem)
-
-
-def load_tasks() -> List[Task]:
-    """Load tasks from task files if present, otherwise fall back to fix_plan.md."""
-    if BACKLOG_OPEN_DIR.exists():
-        tasks = [parse_task_file(path) for path in sorted(BACKLOG_OPEN_DIR.glob("FP-*.md"))]
-        if tasks:
-            return tasks
-
-    backlog_content = read_text(DEFAULT_BACKLOG)
-    return parse_tasks_from_fix_plan(backlog_content)
-
-
-def task_is_selectable(task: Task, done_task_ids: set[str]) -> Tuple[bool, str]:
-    """Check whether a task satisfies the deterministic selection contract."""
-    if task.status.strip().lower() != "open":
-        return False, f"status is {task.status or 'missing'}"
-    if task.blocked_by:
-        return False, "blocked_by is not empty"
-    unmet = [dep for dep in task.depends_on if dep not in done_task_ids]
-    if unmet:
-        return False, f"unmet dependencies: {', '.join(unmet)}"
-    if not task.acceptance_signal.strip():
-        return False, "missing acceptance_signal"
-    if not task.scope.strip():
-        return False, "missing scope"
-    return True, "selectable"
-
-
-def select_task(tasks: List[Task]) -> SelectionResult:
-    """Select the next implementation task using deterministic ranking rules."""
-    done_task_ids = {t.task_id for t in tasks if t.status.strip().lower() == "done"}
-    skipped: List[Dict[str, str]] = []
-    selectable: List[Task] = []
-
-    for task in tasks:
-        ok, reason = task_is_selectable(task, done_task_ids)
-        if ok:
-            selectable.append(task)
-        else:
-            skipped.append({"id": task.task_id, "reason": reason})
-
-    if not selectable:
-        return SelectionResult(
-            selected_task_id=None,
-            reason="No selectable implementation task found; planning mode should be used.",
-            skipped=skipped,
-        )
-
-    selectable.sort(
-        key=lambda t: (
-            normalize_priority(t.priority),
-            t.milestone or "ZZZ",
-            t.task_id,
-        )
-    )
-    selected = selectable[0]
-
-    return SelectionResult(
-        selected_task_id=selected.task_id,
-        reason="Selected highest-priority open task with satisfied dependencies and defined acceptance signal.",
-        skipped=skipped,
-    )
-
-
-def extract_task_block(content: str, task_id: str) -> str:
-    """Extract one embedded task block from fix_plan.md by task id."""
-    pattern = rf"(^###\s+{re.escape(task_id)}\s*$)(.*?)(?=^###\s+FP-\d+\s*$|\Z)"
-    match = re.search(pattern, content, flags=re.MULTILINE | re.DOTALL)
-    if not match:
-        raise ValueError(f"Task not found in fix_plan.md: {task_id}")
-    return match.group(0).strip()
-
-
-def extract_task_from_file(task_id: str) -> str:
-    """Read the full markdown content of one task file."""
-    path = BACKLOG_OPEN_DIR / f"{task_id}.md"
-    if not path.exists():
-        raise FileNotFoundError(f"Task file not found: {path}")
-    return read_text(path)
-
-
 def load_optional_files(paths: List[str]) -> Dict[str, str]:
     """Load optional repository files passed on the command line."""
     loaded: Dict[str, str] = {}
@@ -271,16 +61,23 @@ def load_optional_files(paths: List[str]) -> Dict[str, str]:
 
 
 def render_template(template: str, replacements: Dict[str, str]) -> str:
-    """Fill a text template by replacing <PLACEHOLDER> tokens."""
+    """Fill a text template by replacing placeholder tokens."""
     rendered = template
     for key, value in replacements.items():
         rendered = rendered.replace(f"<{key}>", value)
     return rendered
 
 
-def ensure_artifacts_dir() -> None:
-    """Create the local artifacts directory used for prompt and manifest output."""
-    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+def ensure_session_artifacts_dir() -> None:
+    """Create the session artifacts directory if needed."""
+    SESSION_ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def join_named_sections(files: Dict[str, str], fallback: str) -> str:
+    """Render loaded files into named markdown sections for prompt injection."""
+    if not files:
+        return fallback
+    return "\n\n".join(f"## {path}\n\n{content}" for path, content in files.items())
 
 
 def build_manifest(
@@ -326,19 +123,12 @@ def invoke_agent(agent: str, prompt_path: Path) -> None:
         raise ValueError(f"Unknown agent: {agent}")
 
 
-def join_named_sections(files: Dict[str, str], fallback: str) -> str:
-    """Render loaded files into named markdown sections for prompt injection."""
-    if not files:
-        return fallback
-    return "\n\n".join(f"## {path}\n\n{content}" for path, content in files.items())
-
-
 def main() -> int:
     """Prepare one agent session by initializing the environment, selecting work, and rendering prompt artifacts."""
     parser = argparse.ArgumentParser(description="Prepare one agent session prompt and manifest.")
     parser.add_argument("--mode", choices=["implementation", "planning"], required=True)
     parser.add_argument("--agent", default="claude-code")
-    parser.add_argument("--task", help="Optional explicit task id, e.g. FP-001")
+    parser.add_argument("--task", help="Optional explicit task id, e.g. T-00001")
     parser.add_argument("--planning-goal", default="Improve backlog clarity and selector-readiness.")
     parser.add_argument("--spec", action="append", default=[], help="Relative path to a spec file")
     parser.add_argument("--runbook", action="append", default=[], help="Relative path to a runbook file")
@@ -353,33 +143,29 @@ def main() -> int:
             run_script(ROOT / "scripts" / "session_init.sh")
             run_script(ROOT / "scripts" / "verify_env.sh")
 
-        ensure_artifacts_dir()
+        ensure_session_artifacts_dir()
 
-        instruction_contents = {
-            str(path.relative_to(ROOT)): read_text(path)
-            for path in DEFAULT_INSTRUCTION_FILES
-        }
         handoff_content = read_text(DEFAULT_HANDOFF)
-        backlog_content = read_text(DEFAULT_BACKLOG)
+        backlog_content = read_text(DEFAULT_BACKLOG) if DEFAULT_BACKLOG.exists() else ""
 
         specs_contents = load_optional_files(args.spec)
         runbook_contents = load_optional_files(args.runbook)
         extra_contents = load_optional_files(args.file)
 
-        selected_task_block = ""
+        selected_task_markdown = ""
         selected_task_id: Optional[str] = None
         selected_task_title: Optional[str] = None
         selection_result: Optional[SelectionResult] = None
         prompt_template_path: Path
 
         if args.mode == "implementation":
-            tasks = load_tasks()
+            tasks = load_tasks(BACKLOG_OPEN_DIR, DEFAULT_BACKLOG)
+            task_lookup = {t.task_id: t for t in tasks}
 
             if args.task:
-                selected_task_id = args.task
-                task_lookup = {t.task_id: t for t in tasks}
                 if args.task not in task_lookup:
                     raise ValueError(f"Explicit task not found: {args.task}")
+                selected_task_id = args.task
                 selected_task_title = task_lookup[args.task].title
                 selection_result = SelectionResult(
                     selected_task_id=args.task,
@@ -393,21 +179,15 @@ def main() -> int:
                         "No selectable implementation task found. Use planning mode to repair or refine the backlog."
                     )
                 selected_task_id = selection_result.selected_task_id
-                task_lookup = {t.task_id: t for t in tasks}
                 selected_task_title = task_lookup[selected_task_id].title
 
-            task_file = BACKLOG_OPEN_DIR / f"{selected_task_id}.md"
-            if task_file.exists():
-                selected_task_block = extract_task_from_file(selected_task_id)
-            else:
-                selected_task_block = extract_task_block(backlog_content, selected_task_id)
+            selected_task_markdown = extract_task_markdown(BACKLOG_OPEN_DIR, DEFAULT_BACKLOG, selected_task_id)
 
             prompt_template_path = IMPLEMENTATION_TEMPLATE
-            template = read_text(prompt_template_path)
             prompt = render_template(
-                template,
+                read_text(prompt_template_path),
                 {
-                    "TASK_CONTENT": selected_task_block,
+                    "TASK_CONTENT": selected_task_markdown,
                     "HANDOFF_CONTENT": handoff_content,
                     "SPEC_CONTENTS": join_named_sections(
                         specs_contents,
@@ -423,20 +203,17 @@ def main() -> int:
                     ),
                 },
             )
-
         else:
             prompt_template_path = PLANNING_TEMPLATE
-            template = read_text(prompt_template_path)
-
             planning_goal = args.planning_goal
             if args.force_recovery:
                 planning_goal += "\n\n## Recovery override\nRecovery mode is explicitly requested."
 
             prompt = render_template(
-                template,
+                read_text(prompt_template_path),
                 {
                     "PLANNING_GOAL": planning_goal,
-                    "BACKLOG_CONTENT": backlog_content,
+                    "BACKLOG_CONTENT": backlog_content or "(no backlog fallback file provided)",
                     "HANDOFF_CONTENT": handoff_content,
                     "SPEC_CONTENTS": join_named_sections(
                         specs_contents,
@@ -445,10 +222,15 @@ def main() -> int:
                 },
             )
 
-        prompt_path = ARTIFACTS_DIR / "current_session_prompt.txt"
-        manifest_path = ARTIFACTS_DIR / "current_session_manifest.json"
+        prompt_path = SESSION_ARTIFACTS_DIR / "current_session_prompt.txt"
+        manifest_path = SESSION_ARTIFACTS_DIR / "current_session_manifest.json"
 
         prompt_path.write_text(prompt, encoding="utf-8")
+
+        files_loaded = [str(p.relative_to(ROOT)) for p in DEFAULT_INSTRUCTION_FILES if p.exists()]
+        if DEFAULT_BACKLOG.exists():
+            files_loaded.append(str(DEFAULT_BACKLOG.relative_to(ROOT)))
+        files_loaded.append(str(DEFAULT_HANDOFF.relative_to(ROOT)))
 
         manifest = build_manifest(
             mode=args.mode,
@@ -456,11 +238,7 @@ def main() -> int:
             task_id=selected_task_id,
             task_title=selected_task_title,
             selection=selection_result,
-            files_loaded=[str(p.relative_to(ROOT)) for p in DEFAULT_INSTRUCTION_FILES]
-            + [
-                str(DEFAULT_BACKLOG.relative_to(ROOT)),
-                str(DEFAULT_HANDOFF.relative_to(ROOT)),
-            ],
+            files_loaded=files_loaded,
             specs_loaded=args.spec,
             runbooks_loaded=args.runbook,
             extra_files_loaded=args.file,

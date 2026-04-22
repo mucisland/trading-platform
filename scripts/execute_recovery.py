@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Tuple
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS_DIR = ROOT / ".session-artifacts"
 
-RECOVERY_PLAN = ARTIFACTS_DIR / "current_recovery_plan.json"
+RECOVERY_PLAN = ROOT / "status" / "current_recovery_plan.json"
 RECOVERY_PLAN_VALIDATION = ARTIFACTS_DIR / "current_recovery_plan_validation.json"
 RECOVERY_RESULT = ARTIFACTS_DIR / "current_recovery_result.json"
 
@@ -209,7 +209,7 @@ Out of scope:
 - backlog reprioritization beyond recovery follow-up
 
 ## Inputs used
-- recovery plan artifact: `.session-artifacts/current_recovery_plan.json`
+- recovery plan artifact: `status/current_recovery_plan.json`
 - recovery plan validation: `.session-artifacts/current_recovery_plan_validation.json`
 
 ## Changes made

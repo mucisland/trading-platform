@@ -21,9 +21,11 @@ This runbook defines how recovery is executed, not when it is chosen.
 
 Recovery execution requires a valid recovery plan artifact:
 
-    .session-artifacts/current_recovery_plan.json
+    status/current_recovery_plan.json
 
-Its schema and validation rules are defined in:
+- It is the only active recovery plan.
+- It is durable cross-session state, not a session artifact.
+- Its schema and validation rules are defined in:
 
     /docs/recovery_plan_schema.md
 
